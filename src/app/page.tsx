@@ -15,25 +15,39 @@ type Advocate = {
 export default function Home() {
   const [advocates, setAdvocates] = useState<Advocate[]>([]);
   const [query, setQuery] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
+  const fetchAdvocates = async (search = "") => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const res = await fetch(`/api/advocates${search ? `?q=${encodeURIComponent(search)}` : ""}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+
+      setAdvocates(json.data || []);
+    } catch (err: any) {
+      setError(err.message || "Failed to load advocates.");
+      setAdvocates([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Initial load
   useEffect(() => {
-    fetch("/api/advocates")
-      .then((r) => r.json())
-      .then((json) => setAdvocates(json.data))
-      .finally(() => setLoading(false));
+    fetchAdvocates();
   }, []);
 
-  const filtered = advocates.filter((a) => {
-    const q = query.toLowerCase();
-    return (
-      a.firstName.toLowerCase().includes(q) ||
-      a.lastName.toLowerCase().includes(q) ||
-      a.city.toLowerCase().includes(q) ||
-      a.degree.toLowerCase().includes(q) ||
-      a.specialties.some((s) => s.toLowerCase().includes(q))
-    );
-  });
+  // Trigger search as user types (debounced)
+  useEffect(() => {
+    const delay = setTimeout(() => {
+      fetchAdvocates(query);
+    }, 400); // 400ms debounce
+    return () => clearTimeout(delay);
+  }, [query]);
 
   return (
     <main className="mx-auto max-w-7xl p-6">
@@ -56,47 +70,57 @@ export default function Home() {
         )}
       </div>
 
-      {loading ? (
-        <div className="animate-pulse rounded-xl bg-gray-100 h-40" />
-      ) : filtered.length === 0 ? (
-        <div className="text-gray-600">No advocates found.</div>
-      ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((a, i) => (
-            <div
-              key={i}
-              className="rounded-xl border p-4 shadow-sm hover:shadow-md transition-shadow bg-white"
-            >
-              <div className="font-semibold text-lg">
-                {a.firstName} {a.lastName}
-              </div>
-              <div className="text-sm text-gray-500 mb-2">
-                {a.degree} — {a.city}
-              </div>
+      {loading && <div className="animate-pulse rounded-xl bg-gray-100 h-40" />}
+      {error && <div className="text-red-600 mb-4">{error}</div>}
 
-              <div className="flex flex-wrap gap-1 mb-2">
-                {a.specialties.slice(0, 3).map((s) => (
-                  <span
-                    key={s}
-                    className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full"
-                  >
-                    {s}
-                  </span>
-                ))}
-                {a.specialties.length > 3 && (
-                  <span className="text-xs text-gray-500">+{a.specialties.length - 3} more</span>
-                )}
-              </div>
+      {!loading && !error && (
+        <>
+          {advocates.length === 0 ? (
+            <div className="text-gray-600">No advocates found.</div>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {advocates.map((a, i) => (
+                <div
+                  key={i}
+                  className="rounded-xl border p-4 shadow-sm hover:shadow-md transition-shadow bg-white"
+                >
+                  <div className="font-semibold text-lg">
+                    {a.firstName} {a.lastName}
+                  </div>
+                  <div className="text-sm text-gray-500 mb-2">
+                    {a.degree} — {a.city}
+                  </div>
 
-              <div className="text-sm text-gray-600">
-                <span className="font-medium">{a.yearsOfExperience}</span> years experience
-              </div>
-              <div className="text-sm text-gray-600">
-                📞 {a.phoneNumber.toString().replace(/(\d{3})(\d{3})(\d{4})/, "($1) $2-$3")}
-              </div>
+                  <div className="flex flex-wrap gap-1 mb-2">
+                    {a.specialties.slice(0, 3).map((s) => (
+                      <span
+                        key={s}
+                        className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full"
+                      >
+                        {s}
+                      </span>
+                    ))}
+                    {a.specialties.length > 3 && (
+                      <span className="text-xs text-gray-500">
+                        +{a.specialties.length - 3} more
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="text-sm text-gray-600">
+                    <span className="font-medium">{a.yearsOfExperience}</span> years experience
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    📞{" "}
+                    {a.phoneNumber
+                      .toString()
+                      .replace(/(\d{3})(\d{3})(\d{4})/, "($1) $2-$3")}
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          )}
+        </>
       )}
     </main>
   );

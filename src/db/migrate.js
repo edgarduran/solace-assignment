@@ -1,27 +1,46 @@
-const { drizzle } = require("drizzle-orm/postgres-js");
-const { migrate } = require("drizzle-orm/postgres-js/migrator");
-const postgres = require("postgres");
+import * as dotenv from "dotenv";
+import { resolve } from "path";
+dotenv.config({ path: resolve(process.cwd(), ".env.local") });
 
-const runMigration = async () => {
-  if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is not set");
+import { drizzle } from "drizzle-orm/postgres-js";
+import { sql } from "drizzle-orm";
+import postgres from "postgres";
+import { advocates } from "./schema.js";
+import { advocateData } from "./seed/advocates.js";
 
-  console.log(process.env.DATABASE_URL);
+async function runMigration() {
+  if (!process.env.DATABASE_URL) {
+    throw new Error("DATABASE_URL is not set");
+  }
 
-  const sql = postgres(process.env.DATABASE_URL, { max: 1 });
-  const db = drizzle(sql);
-  await migrate(db, { migrationsFolder: "drizzle" });
-  await sql.end();
-};
+  const client = postgres(process.env.DATABASE_URL, { max: 1 });
+  const db = drizzle(client);
 
-runMigration()
-  .then(() => {
-    console.log("Successfully ran migration.");
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS advocates (
+        id SERIAL PRIMARY KEY,
+        first_name TEXT NOT NULL,
+        last_name TEXT NOT NULL,
+        city TEXT NOT NULL,
+        degree TEXT NOT NULL,
+        payload JSONB DEFAULT '[]'::jsonb NOT NULL,
+        years_of_experience INTEGER NOT NULL,
+        phone_number BIGINT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
 
-    process.exit(0);
-  })
-  .catch((e) => {
-    console.error("Failed to run migration.");
-    console.error(e);
+    console.log("Seeding advocates...");
+    await db.delete(advocates);
+    await db.insert(advocates).values(advocateData);
 
-    process.exit(1);
-  });
+    console.log("Seeding completed successfully.");
+  } catch (err) {
+    console.error("Failed to run migration:", err);
+  } finally {
+    await client.end();
+  }
+}
+
+runMigration();
