@@ -2,90 +2,102 @@
 
 import { useEffect, useState } from "react";
 
+type Advocate = {
+  firstName: string;
+  lastName: string;
+  city: string;
+  degree: string;
+  specialties: string[];
+  yearsOfExperience: number;
+  phoneNumber: number;
+};
+
 export default function Home() {
-  const [advocates, setAdvocates] = useState([]);
-  const [filteredAdvocates, setFilteredAdvocates] = useState([]);
+  const [advocates, setAdvocates] = useState<Advocate[]>([]);
+  const [query, setQuery] = useState("");
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    console.log("fetching advocates...");
-    fetch("/api/advocates").then((response) => {
-      response.json().then((jsonResponse) => {
-        setAdvocates(jsonResponse.data);
-        setFilteredAdvocates(jsonResponse.data);
-      });
-    });
+    fetch("/api/advocates")
+      .then((r) => r.json())
+      .then((json) => setAdvocates(json.data))
+      .finally(() => setLoading(false));
   }, []);
 
-  const onChange = (e) => {
-    const searchTerm = e.target.value;
-
-    document.getElementById("search-term").innerHTML = searchTerm;
-
-    console.log("filtering advocates...");
-    const filteredAdvocates = advocates.filter((advocate) => {
-      return (
-        advocate.firstName.includes(searchTerm) ||
-        advocate.lastName.includes(searchTerm) ||
-        advocate.city.includes(searchTerm) ||
-        advocate.degree.includes(searchTerm) ||
-        advocate.specialties.includes(searchTerm) ||
-        advocate.yearsOfExperience.includes(searchTerm)
-      );
-    });
-
-    setFilteredAdvocates(filteredAdvocates);
-  };
-
-  const onClick = () => {
-    console.log(advocates);
-    setFilteredAdvocates(advocates);
-  };
+  const filtered = advocates.filter((a) => {
+    const q = query.toLowerCase();
+    return (
+      a.firstName.toLowerCase().includes(q) ||
+      a.lastName.toLowerCase().includes(q) ||
+      a.city.toLowerCase().includes(q) ||
+      a.degree.toLowerCase().includes(q) ||
+      a.specialties.some((s) => s.toLowerCase().includes(q))
+    );
+  });
 
   return (
-    <main style={{ margin: "24px" }}>
-      <h1>Solace Advocates</h1>
-      <br />
-      <br />
-      <div>
-        <p>Search</p>
-        <p>
-          Searching for: <span id="search-term"></span>
-        </p>
-        <input style={{ border: "1px solid black" }} onChange={onChange} />
-        <button onClick={onClick}>Reset Search</button>
+    <main className="mx-auto max-w-7xl p-6">
+      <h1 className="text-3xl font-semibold mb-6">Find an Advocate</h1>
+
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:gap-4">
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search by name, specialty, or city"
+          className="w-full sm:w-96 rounded-lg border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-blue-500"
+        />
+        {query && (
+          <button
+            onClick={() => setQuery("")}
+            className="mt-3 sm:mt-0 rounded-lg border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50"
+          >
+            Clear
+          </button>
+        )}
       </div>
-      <br />
-      <br />
-      <table>
-        <thead>
-          <th>First Name</th>
-          <th>Last Name</th>
-          <th>City</th>
-          <th>Degree</th>
-          <th>Specialties</th>
-          <th>Years of Experience</th>
-          <th>Phone Number</th>
-        </thead>
-        <tbody>
-          {filteredAdvocates.map((advocate) => {
-            return (
-              <tr>
-                <td>{advocate.firstName}</td>
-                <td>{advocate.lastName}</td>
-                <td>{advocate.city}</td>
-                <td>{advocate.degree}</td>
-                <td>
-                  {advocate.specialties.map((s) => (
-                    <div>{s}</div>
-                  ))}
-                </td>
-                <td>{advocate.yearsOfExperience}</td>
-                <td>{advocate.phoneNumber}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+
+      {loading ? (
+        <div className="animate-pulse rounded-xl bg-gray-100 h-40" />
+      ) : filtered.length === 0 ? (
+        <div className="text-gray-600">No advocates found.</div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {filtered.map((a, i) => (
+            <div
+              key={i}
+              className="rounded-xl border p-4 shadow-sm hover:shadow-md transition-shadow bg-white"
+            >
+              <div className="font-semibold text-lg">
+                {a.firstName} {a.lastName}
+              </div>
+              <div className="text-sm text-gray-500 mb-2">
+                {a.degree} — {a.city}
+              </div>
+
+              <div className="flex flex-wrap gap-1 mb-2">
+                {a.specialties.slice(0, 3).map((s) => (
+                  <span
+                    key={s}
+                    className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full"
+                  >
+                    {s}
+                  </span>
+                ))}
+                {a.specialties.length > 3 && (
+                  <span className="text-xs text-gray-500">+{a.specialties.length - 3} more</span>
+                )}
+              </div>
+
+              <div className="text-sm text-gray-600">
+                <span className="font-medium">{a.yearsOfExperience}</span> years experience
+              </div>
+              <div className="text-sm text-gray-600">
+                📞 {a.phoneNumber.toString().replace(/(\d{3})(\d{3})(\d{4})/, "($1) $2-$3")}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </main>
   );
 }
